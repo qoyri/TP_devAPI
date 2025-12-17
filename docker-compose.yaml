@@ -1,0 +1,182 @@
+services:
+  # ============================================
+  # 1. DATABASE - MySQL 8.0 (fourni par le prof)
+  # ============================================
+  db:
+    image: mysql:8.0
+    container_name: mysql_siren
+    restart: unless-stopped
+    mem_limit: 4g
+    environment:
+      MYSQL_ROOT_PASSWORD: 12345678
+      MYSQL_DATABASE: siren
+      MYSQL_USER: sirenuser
+      MYSQL_PASSWORD: 12345678
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./my.cnf:/etc/mysql/conf.d/my.cnf
+      - db_data:/var/lib/mysql
+      - ./data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=12345678 mysqladmin ping -h 127.0.0.1 -usirenuser --silent"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - siren-network
+
+  # ============================================
+  # 2. INIT DATA - Télécharge et charge les données SIREN
+  # ============================================
+  init-data:
+    build: ./init-data
+    container_name: init_data
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: db
+      MYSQL_USER: root
+      MYSQL_PASSWORD: "12345678"
+      MYSQL_DATABASE: siren
+    volumes:
+      - ./data:/data
+    networks:
+      - siren-network
+    restart: "no"
+
+  # ============================================
+  # 3. SPARK CONNECT SERVER (Scala - fourni par le prof)
+  # ============================================
+  spark:
+    build: .
+    container_name: spark_server
+    mem_limit: 4g
+    depends_on:
+      db:
+        condition: service_healthy
+      init-data:
+        condition: service_completed_successfully
+    # Port interne uniquement (pas exposé)
+    environment:
+      MYSQL_HOST: db
+      MYSQL_PORT: "3306"
+    networks:
+      - siren-network
+
+  # ============================================
+  # 3. OAUTH2 SERVER (Python/FastAPI)
+  # ============================================
+  oauth2-server:
+    build: ./oauth2-server
+    container_name: oauth2_server
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    # Accessible uniquement via Caddy
+    environment:
+      MYSQL_HOST: db
+      MYSQL_PORT: "3306"
+      MYSQL_USER: sirenuser
+      MYSQL_PASSWORD: "12345678"
+      MYSQL_DATABASE: siren
+      SECRET_KEY: "super-secret-key-for-jwt-tokens-change-in-production"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:4000/health')\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - siren-network
+
+  # ============================================
+  # 4. MYSQL API (Python/FastAPI) - Entreprises
+  # ============================================
+  mysql-api:
+    build: ./mysql-api
+    container_name: mysql_api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      oauth2-server:
+        condition: service_healthy
+    # Accessible uniquement via Caddy
+    environment:
+      MYSQL_HOST: db
+      MYSQL_PORT: "3306"
+      MYSQL_USER: sirenuser
+      MYSQL_PASSWORD: "12345678"
+      MYSQL_DATABASE: siren
+      OAUTH2_INTROSPECT_URL: http://oauth2-server:4000/oauth/introspect
+      OAUTH2_CLIENT_ID: mysql-api-client
+      OAUTH2_CLIENT_SECRET: mysql_api_secret
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:3001/health')\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - siren-network
+
+  # ============================================
+  # 5. SPARK API (Node.js/Express) - Statistiques
+  # ============================================
+  spark-api:
+    build: ./spark-api
+    container_name: spark_api
+    restart: unless-stopped
+    depends_on:
+      - spark
+      - oauth2-server
+    # Accessible uniquement via Caddy
+    environment:
+      PORT: "3002"
+      SPARK_CONNECT_HOST: spark
+      SPARK_CONNECT_PORT: "15002"
+      OAUTH2_INTROSPECT_URL: http://oauth2-server:4000/oauth/introspect
+      OAUTH2_CLIENT_ID: spark-api-client
+      OAUTH2_CLIENT_SECRET: spark_api_secret
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - siren-network
+
+  # ============================================
+  # 6. CADDY - Reverse Proxy avec TLS
+  # ============================================
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy_proxy
+    restart: unless-stopped
+    depends_on:
+      - oauth2-server
+      - mysql-api
+      - spark-api
+    ports:
+      - "8443:8443"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/certs:/etc/caddy/certs:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - siren-network
+
+volumes:
+  db_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  siren-network:
+    driver: bridge

@@ -1,0 +1,68 @@
+{
+	admin off
+}
+
+:8443 {
+	tls /etc/caddy/certs/cert.pem /etc/caddy/certs/key.pem
+
+	log {
+		output stdout
+		format console
+	}
+
+	# OAuth2
+	handle /oauth/* {
+		reverse_proxy oauth2-server:4000
+	}
+
+	# API Entreprises
+	handle /api/entreprises/* {
+		uri strip_prefix /api
+		reverse_proxy mysql-api:3001
+	}
+
+	# API Stats
+	handle /api/stats/* {
+		uri strip_prefix /api
+		reverse_proxy spark-api:3002
+	}
+
+	# Swagger OAuth2 (FastAPI)
+	handle /docs/oauth {
+		rewrite * /api-docs
+		reverse_proxy oauth2-server:4000
+	}
+	handle /docs/oauth/* {
+		uri strip_prefix /docs/oauth
+		reverse_proxy oauth2-server:4000
+	}
+
+	# Swagger MySQL (FastAPI)
+	handle /docs/mysql {
+		rewrite * /api-docs
+		reverse_proxy mysql-api:3001
+	}
+	handle /docs/mysql/* {
+		uri strip_prefix /docs/mysql
+		reverse_proxy mysql-api:3001
+	}
+
+	# Swagger Spark (Express) - forcer le slash final
+	handle /docs/spark {
+		rewrite * /api-docs/
+		reverse_proxy spark-api:3002
+	}
+	handle /docs/spark/* {
+		uri strip_prefix /docs/spark
+		uri replace /api-docs /api-docs/
+		reverse_proxy spark-api:3002
+	}
+
+	handle /health {
+		respond "OK" 200
+	}
+
+	handle {
+		respond "API SIREN - /docs/oauth, /docs/mysql, /docs/spark" 200
+	}
+}
