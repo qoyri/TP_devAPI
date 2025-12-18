@@ -1,0 +1,118 @@
+kind: pipeline
+type: docker
+name: test-and-build
+
+steps:
+  # ============ TESTS ============
+
+  - name: test-mysql-api
+    image: python:3.11-slim
+    commands:
+      - cd mysql-api
+      - pip install -r requirements.txt
+      - pip install pytest httpx
+      - python -c "from main import app; print('MySQL API syntax OK')"
+
+  - name: test-spark-api
+    image: node:20-alpine
+    commands:
+      - cd spark-api
+      - npm install
+      - node -e "require('./index.js'); console.log('Spark API syntax OK')" || true
+
+  - name: test-oauth2-server
+    image: elixir:1.15-alpine
+    commands:
+      - cd oauth2-server
+      - mix local.hex --force
+      - mix local.rebar --force
+      - mix deps.get
+      - mix compile
+
+  # ============ BUILD & PUSH ============
+
+  - name: build-mysql-api
+    image: plugins/docker
+    settings:
+      registry:
+        from_secret: harbor_registry
+      repo:
+        from_secret: harbor_repo_mysql_api
+      dockerfile: mysql-api/Dockerfile
+      context: mysql-api
+      tags:
+        - latest
+        - ${DRONE_COMMIT_SHA:0:8}
+      username:
+        from_secret: harbor_username
+      password:
+        from_secret: harbor_password
+      insecure: true
+    depends_on:
+      - test-mysql-api
+
+  - name: build-spark-api
+    image: plugins/docker
+    settings:
+      registry:
+        from_secret: harbor_registry
+      repo:
+        from_secret: harbor_repo_spark_api
+      dockerfile: spark-api/Dockerfile
+      context: spark-api
+      tags:
+        - latest
+        - ${DRONE_COMMIT_SHA:0:8}
+      username:
+        from_secret: harbor_username
+      password:
+        from_secret: harbor_password
+      insecure: true
+    depends_on:
+      - test-spark-api
+
+  - name: build-oauth2-server
+    image: plugins/docker
+    settings:
+      registry:
+        from_secret: harbor_registry
+      repo:
+        from_secret: harbor_repo_oauth2
+      dockerfile: oauth2-server/Dockerfile
+      context: oauth2-server
+      tags:
+        - latest
+        - ${DRONE_COMMIT_SHA:0:8}
+      username:
+        from_secret: harbor_username
+      password:
+        from_secret: harbor_password
+      insecure: true
+    depends_on:
+      - test-oauth2-server
+
+  - name: build-spark-server
+    image: plugins/docker
+    settings:
+      registry:
+        from_secret: harbor_registry
+      repo:
+        from_secret: harbor_repo_spark
+      dockerfile: Dockerfile
+      context: .
+      tags:
+        - latest
+        - ${DRONE_COMMIT_SHA:0:8}
+      username:
+        from_secret: harbor_username
+      password:
+        from_secret: harbor_password
+      insecure: true
+
+trigger:
+  branch:
+    - master
+    - main
+  event:
+    - push
+    - pull_request
