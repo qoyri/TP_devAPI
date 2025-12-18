@@ -34,7 +34,7 @@ WORKDIR /app
 # Install runtime dependencies
 RUN apk add --no-cache libstdc++ openssl ncurses-libs
 
-# Copy release from build stage
+# Copy release from build stages
 COPY --from=build /app/_build/prod/rel/oauth2_server ./
 
 ENV HOME=/app
