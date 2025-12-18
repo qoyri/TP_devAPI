@@ -1,4 +1,4 @@
-FROM caddy:2-alpine
+FROM caddy:2.9-alpine
 
 # Install openssl for cert generation
 RUN apk add --no-cache openssl
