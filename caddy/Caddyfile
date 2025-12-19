@@ -42,7 +42,7 @@
 		reverse_proxy mysql-api:3001
 	}
 
-	# API Stat
+	# API Stats
 	handle /api/stats/* {
 		uri strip_prefix /api
 		reverse_proxy spark-api:3002
