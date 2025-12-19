@@ -200,31 +200,49 @@ steps:
         - failure
 
   # ============================================
-  # STAGE 4: ARCHIVAGE DES ARTEFACTS
+  # STAGE 4: UPLOAD RAPPORTS VERS HARBOR (ORAS)
   # ============================================
 
-  - name: archive-reports
-    image: alpine:latest
-    volumes:
-      - name: reports
-        path: /reports
+  - name: upload-reports-harbor
+    image: ghcr.io/oras-project/oras:v1.1.0
+    environment:
+      HARBOR_REGISTRY:
+        from_secret: harbor_registry
+      HARBOR_USER:
+        from_secret: harbor_username
+      HARBOR_PASS:
+        from_secret: harbor_password
     commands:
-      - echo "=== Archivage des rapports ==="
-      - mkdir -p artifacts
-      - cp test-report.* artifacts/ 2>/dev/null || true
-      - cp /reports/* artifacts/ 2>/dev/null || true
-      - ls -la artifacts/
+      - echo "=== Upload des rapports vers Harbor ==="
+      - ls -la *.pdf *.json *.md 2>/dev/null || echo "Fichiers disponibles"
       - |
-        if [ -f "artifacts/test-report.json" ]; then
-          echo "=== Resume des tests ==="
-          cat artifacts/test-report.json | head -50
+        echo "Login Harbor..."
+        oras login $${HARBOR_REGISTRY} -u $${HARBOR_USER} -p $${HARBOR_PASS} --insecure
+      - |
+        echo "Push des rapports..."
+        if [ -f "test-report.pdf" ] && [ -f "test-report.json" ]; then
+          oras push $${HARBOR_REGISTRY}/reports/ci-reports:build-${DRONE_BUILD_NUMBER} \
+            test-report.pdf:application/pdf \
+            test-report.json:application/json \
+            test-report.md:text/markdown \
+            --insecure
+          oras push $${HARBOR_REGISTRY}/reports/ci-reports:latest \
+            test-report.pdf:application/pdf \
+            test-report.json:application/json \
+            test-report.md:text/markdown \
+            --insecure
+          echo "Rapports uploades avec succes"
+          echo "  - $${HARBOR_REGISTRY}/reports/ci-reports:build-${DRONE_BUILD_NUMBER}"
+          echo "  - $${HARBOR_REGISTRY}/reports/ci-reports:latest"
+        else
+          echo "Rapports non trouves, upload ignore"
+          ls -la
         fi
     depends_on:
       - generate-pdf-report
     when:
       status:
         - success
-        - failure
 
   # ============================================
   # STAGE 5: BUILD & PUSH IMAGES
