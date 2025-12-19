@@ -59,7 +59,3 @@ node_modules/
 __pycache__/
 *.pyc
 .env
-
-### Certificates (auto-generated) ###
-caddy/certs/*.pem
-caddy/certs/*.key
