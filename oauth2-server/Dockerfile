@@ -31,10 +31,10 @@ FROM alpine:3.18 AS runtime
 
 WORKDIR /app
 
-# Install runtime dependencies
-RUN apk add --no-cache libstdc++ openssl ncurses-libs
+# Install runtime dependencies (curl for healthcheck)
+RUN apk add --no-cache libstdc++ openssl ncurses-libs curl
 
-# Copy release from build stages
+# Copy release from build stage
 COPY --from=build /app/_build/prod/rel/oauth2_server ./
 
 ENV HOME=/app

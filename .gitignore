@@ -59,3 +59,9 @@ node_modules/
 __pycache__/
 *.pyc
 .env
+
+### Elixir ###
+oauth2-server/_build/
+oauth2-server/deps/
+oauth2-server/.elixir_ls/
+*.ez

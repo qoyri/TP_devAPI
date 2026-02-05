@@ -69,21 +69,14 @@ services:
   # 4. OAUTH2 SERVER (Elixir/Phoenix)
   # ============================================
   oauth2-server:
-    image: elixir:1.15-alpine
+    build: ./oauth2-server
     container_name: oauth2_server
-    working_dir: /app
-    command: >
-      sh -c "apk add --no-cache build-base git curl &&
-             mix local.hex --force &&
-             mix local.rebar --force &&
-             mix deps.get &&
-             mix phx.server"
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
     environment:
-      MIX_ENV: dev
+      MIX_ENV: prod
       MYSQL_HOST: db
       MYSQL_PORT: "3306"
       MYSQL_USER: sirenuser
@@ -92,16 +85,12 @@ services:
       SECRET_KEY_BASE: super_secret_key_base_for_production_change_this_to_64_chars_minimum
       SECRET_KEY: super-secret-key-for-jwt-change-in-production-min-64-chars
       PORT: "4000"
-    volumes:
-      - ./oauth2-server:/app
-      - oauth2_deps:/app/deps
-      - oauth2_build:/app/_build
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:4000/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 120s
+      start_period: 30s
     networks:
       - siren-network
 
@@ -184,8 +173,6 @@ services:
 
 volumes:
   db_data:
-  oauth2_deps:
-  oauth2_build:
   caddy_data:
   caddy_config:
 
