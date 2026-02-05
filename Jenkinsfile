@@ -10,6 +10,8 @@ pipeline {
     environment {
         DOKPLOY_URL = 'http://192.168.0.103:3000'
         DOKPLOY_TOKEN = 'CMP_fcdf0ce662f5dbde70db'
+        SONAR_HOST_URL = 'http://192.168.0.219:9000'
+        SONAR_TOKEN = credentials('sonarqube-token')
     }
 
     stages {
@@ -122,6 +124,36 @@ pipeline {
             }
         }
 
+        stage('SonarQube Analysis') {
+            agent {
+                docker {
+                    image 'sonarsource/sonar-scanner-cli:latest'
+                    args '-u root --network host'
+                    reuseNode true
+                }
+            }
+            steps {
+                script {
+                    try {
+                        sh '''
+                            sonar-scanner \
+                                -Dsonar.host.url=${SONAR_HOST_URL} \
+                                -Dsonar.token=${SONAR_TOKEN} \
+                                -Dsonar.projectKey=tp-devapi \
+                                -Dsonar.projectName="TP DevAPI" \
+                                -Dsonar.sources=mysql-api,spark-api,oauth2-server/lib \
+                                -Dsonar.exclusions="**/node_modules/**,**/_build/**,**/deps/**,**/__pycache__/**,**/data/**"
+                        '''
+                        env.SONAR_STATUS = 'passed'
+                    } catch (e) {
+                        env.SONAR_STATUS = 'failed'
+                        // Don't fail the build on SonarQube issues
+                        echo "SonarQube analysis failed: ${e.message}"
+                    }
+                }
+            }
+        }
+
         stage('Deploy') {
             steps {
                 writeFile file: 'payload.json', text: '{"ref":"refs/heads/main","repository":{"full_name":"Lajavel-gg/TP_devAPI"}}'
@@ -157,6 +189,7 @@ Test Results:
 - YAML:        ${env.YAML_STATUS ?: 'passed'}
 - Dockerfiles: ${env.DOCKER_STATUS ?: 'passed'}
 - Security:    ${env.SECURITY_STATUS ?: 'passed'}
+- SonarQube:   ${env.SONAR_STATUS ?: 'skipped'}
 - Deploy:      ${env.DEPLOY_STATUS ?: 'passed'}
 ========================================
 """
