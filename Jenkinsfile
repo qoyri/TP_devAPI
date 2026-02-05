@@ -87,22 +87,6 @@ pipeline {
                             }
                         }
                     }
-                    post {
-                        always {
-                            // Publish JUnit XML results
-                            junit allowEmptyResults: true, testResults: 'test-results/*.xml'
-                            // Publish HTML report
-                            publishHTML(target: [
-                                allowMissing: true,
-                                alwaysLinkToLastBuild: true,
-                                keepAll: true,
-                                reportDir: 'test-results',
-                                reportFiles: 'report.html',
-                                reportName: 'ExUnit Test Report',
-                                reportTitles: 'ExUnit Tests'
-                            ])
-                        }
-                    }
                 }
                 stage('YAML') {
                     steps {
@@ -139,6 +123,24 @@ pipeline {
                     def issues = sh(script: 'grep -rn "password.*=.*[0-9]" --include="*.py" --include="*.js" . 2>/dev/null || true', returnStdout: true).trim()
                     env.SECURITY_STATUS = issues ? 'warning' : 'passed'
                 }
+            }
+        }
+
+        stage('Publish Test Results') {
+            steps {
+                // Publish JUnit XML results for test trends
+                junit allowEmptyResults: true, testResults: 'test-results/*.xml'
+
+                // Publish HTML report
+                publishHTML(target: [
+                    allowMissing: true,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'test-results',
+                    reportFiles: 'report.html',
+                    reportName: 'ExUnit Test Report',
+                    reportTitles: 'ExUnit Tests'
+                ])
             }
         }
 
@@ -209,6 +211,11 @@ Test Results:
 - Security:    ${env.SECURITY_STATUS ?: 'passed'}
 - SonarQube:   ${env.SONAR_STATUS ?: 'skipped'}
 - Deploy:      ${env.DEPLOY_STATUS ?: 'passed'}
+
+Reports:
+- ExUnit HTML: ${BUILD_URL}ExUnit_20Test_20Report/
+- JUnit:       ${BUILD_URL}testReport/
+- SonarQube:   ${env.SONAR_HOST_URL}/dashboard?id=tp-devapi
 ========================================
 """
                     writeFile file: reportName, text: status
