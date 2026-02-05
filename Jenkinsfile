@@ -59,6 +59,7 @@ pipeline {
                         docker {
                             image 'elixir:1.15-alpine'
                             args '-u root'
+                            reuseNode true
                         }
                     }
                     steps {
@@ -70,7 +71,7 @@ pipeline {
                                     mix local.hex --force
                                     mix local.rebar --force
                                     mix deps.get
-                                    mix test --color
+                                    MIX_ENV=test mix test --color
                                 '''
                                 env.ELIXIR_STATUS = 'passed'
                             } catch (e) {
