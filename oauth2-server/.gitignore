@@ -1,0 +1,17 @@
+# Dependencies
+/deps/
+/_build/
+
+# Generated test results (CI artifacts)
+/test-results/
+
+# Mix artifacts
+*.ez
+/cover/
+/doc/
+
+# Crash dumps
+erl_crash.dump
+
+# MacOS
+.DS_Store

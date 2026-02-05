@@ -80,9 +80,27 @@ pipeline {
                                 env.ELIXIR_STATUS = 'failed'
                                 throw e
                             } finally {
+                                // Copy test results before cleanup
+                                sh 'cp -r oauth2-server/test-results . || true'
                                 // Clean build artifacts to fix permission issues
                                 sh 'rm -rf oauth2-server/_build oauth2-server/deps || true'
                             }
+                        }
+                    }
+                    post {
+                        always {
+                            // Publish JUnit XML results
+                            junit allowEmptyResults: true, testResults: 'test-results/*.xml'
+                            // Publish HTML report
+                            publishHTML(target: [
+                                allowMissing: true,
+                                alwaysLinkToLastBuild: true,
+                                keepAll: true,
+                                reportDir: 'test-results',
+                                reportFiles: 'report.html',
+                                reportName: 'ExUnit Test Report',
+                                reportTitles: 'ExUnit Tests'
+                            ])
                         }
                     }
                 }

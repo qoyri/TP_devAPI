@@ -35,7 +35,9 @@ defmodule Oauth2Server.MixProject do
       {:bcrypt_elixir, "~> 3.0"},
       {:cors_plug, "~> 3.0"},
       {:open_api_spex, "~> 3.18"},
-      {:joken, "~> 2.6"}
+      {:joken, "~> 2.6"},
+      # Test reporting
+      {:junit_formatter, "~> 3.3", only: :test}
     ]
   end
 
